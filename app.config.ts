@@ -28,11 +28,8 @@ const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "مصروفي — تطبيق إدارة المصروفات",
+  appName: "مصروفي",
   appSlug: "masrofy3",
-  // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
-  // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -59,7 +56,8 @@ const publicRuntime = {
   apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? "",
 };
 
-const config: ExpoConfig = {
+const config: ExpoConfig & { logoUrl: string } = {
+  logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663786239181/cQpjiGCvumNhgCsn.png",
   name: env.appName,
   slug: env.appSlug,
   version: "1.0.0",
@@ -67,7 +65,7 @@ const config: ExpoConfig = {
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
-  userInterfaceStyle: "automatic",
+  userInterfaceStyle: "light",
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
@@ -77,14 +75,19 @@ const config: ExpoConfig = {
   },
   android: {
     adaptiveIcon: {
-      backgroundColor: "#E6F4FE",
+      backgroundColor: "#F7F5EF",
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     predictiveBackGestureEnabled: false,
+    allowBackup: false,
+    blockedPermissions: [
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+    ],
     package: env.androidPackage,
-    permissions: ["POST_NOTIFICATIONS"],
     intentFilters: [
       {
         action: "VIEW",
@@ -107,28 +110,17 @@ const config: ExpoConfig = {
   plugins: [
     "expo-asset",
     "expo-router",
-    [
-      "expo-audio",
-      {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
-      },
-    ],
-    [
-      "expo-video",
-      {
-        supportsBackgroundPlayback: true,
-        supportsPictureInPicture: true,
-      },
-    ],
+    "expo-sqlite",
+    "./plugins/with-notification-listener",
     [
       "expo-splash-screen",
       {
         image: "./assets/images/splash-icon.png",
         imageWidth: 200,
         resizeMode: "contain",
-        backgroundColor: "#ffffff",
+        backgroundColor: "#F7F5EF",
         dark: {
-          backgroundColor: "#000000",
+          backgroundColor: "#F7F5EF",
         },
       },
     ],
