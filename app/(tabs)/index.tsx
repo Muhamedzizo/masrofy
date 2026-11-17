@@ -9,14 +9,17 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import type { Href } from "expo-router";
 import { DEFAULT_CATEGORIES, getCategory } from "@/lib/categories";
 import {
   getPaymentMethodLabel,
   loadExpenseCategories,
   loadPaymentMethods,
 } from "@/lib/personalization";
-import { initDatabase, listExpenses } from "@/lib/expense-db";
+import { initDatabase } from "@/lib/expense-db";
 import type { Expense, PaymentSource } from "@/lib/expense-db";
+import type { WalletBalance } from "@/lib/wallet-model";
+import { getWalletSnapshot } from "@/lib/wallet";
 import {
   EXPENSE_PERIODS,
   formatDate,
@@ -57,13 +60,17 @@ export default function HomeScreen() {
   const [paymentMethods, setPaymentMethods] = useState<
     { id: string; label: string }[]
   >([{ id: "manual", label: "يدوي" }]);
+  const [walletBalances, setWalletBalances] = useState<WalletBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     try {
       await initDatabase();
-      setExpenses(await listExpenses());
       setCategories(await loadExpenseCategories());
-      setPaymentMethods(await loadPaymentMethods());
+      const methods = await loadPaymentMethods();
+      setPaymentMethods(methods);
+      const snapshot = await getWalletSnapshot(methods.map((item) => item.id));
+      setExpenses(snapshot.expenses);
+      setWalletBalances(snapshot.balances.filter((item) => item.isTracked));
     } finally {
       setLoading(false);
     }
@@ -175,7 +182,7 @@ export default function HomeScreen() {
               <View style={s.actionCircle}>
                 <Ionicons name="add" size={19} color={C.green} />
               </View>
-              <Text style={s.heroActionText}>أضف مصروف</Text>
+              <Text style={s.heroActionText}>صرفت</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={s.heroAction}
@@ -187,6 +194,35 @@ export default function HomeScreen() {
               <Text style={s.heroActionText}>صندوق المراجعة</Text>
             </TouchableOpacity>
           </View>
+        </View>
+        <View style={s.walletCard}>
+          <View style={s.walletHead}>
+            <View>
+              <Text style={s.walletTitle}>رصيدك المتاح</Text>
+              <Text style={s.walletCaption}>حسب وسيلة الدفع</Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push("/wallet" as Href)} style={s.walletManage}>
+              <Text style={s.walletManageText}>{walletBalances.length ? "إدارة الرصيد" : "ابدأ هنا"}</Text>
+              <Ionicons name="chevron-back" size={14} color={C.green} />
+            </TouchableOpacity>
+          </View>
+          {walletBalances.length ? (
+            <>
+              <Text style={s.walletTotal}>
+                {formatPiasters(walletBalances.reduce((sum, item) => sum + item.balancePiasters, 0))}
+              </Text>
+              <View style={s.walletRows}>
+                {walletBalances.map((item) => (
+                  <View key={item.source} style={s.walletRow}>
+                    <Text style={s.walletBalance}>{formatPiasters(item.balancePiasters)}</Text>
+                    <Text style={s.walletMethod}>{getPaymentMethodLabel(item.source, paymentMethods)}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : (
+            <Text style={s.walletEmpty}>سجّل المبلغ الموجود معك على كل طريقة دفع ليظهر الرصيد بعد كل عملية.</Text>
+          )}
         </View>
         <View style={s.periodPicker}>
           <Text style={s.periodPickerLabel}>الفترة</Text>
@@ -402,7 +438,7 @@ export default function HomeScreen() {
             })
           )}
         </View>
-        <Text style={s.privacyNote}>◈ بياناتك محفوظة على جهازك فقط</Text>
+        <Text style={s.privacyNote}>◈ دفتر المصروفات والأرصدة الشخصية محفوظ محليًا على جهازك</Text>
       </ScrollView>
       <TouchableOpacity
         accessibilityLabel="صرفت"
@@ -519,6 +555,30 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   heroActionText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  walletCard: {
+    backgroundColor: C.white,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#F0EEE8",
+    marginTop: 13,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+  },
+  walletHead: {
+    flexDirection: "row-reverse",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  walletTitle: { color: C.ink, fontSize: 13, textAlign: "right", fontWeight: "800" },
+  walletCaption: { color: C.muted, fontSize: 10, textAlign: "right", marginTop: 2 },
+  walletManage: { flexDirection: "row-reverse", alignItems: "center", gap: 2 },
+  walletManageText: { color: C.green, fontSize: 10, fontWeight: "800" },
+  walletTotal: { color: C.green, textAlign: "right", fontSize: 21, fontWeight: "800", marginTop: 8 },
+  walletRows: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7, marginTop: 8 },
+  walletRow: { flexDirection: "row-reverse", alignItems: "center", gap: 6, backgroundColor: "#F5F7F4", borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6 },
+  walletMethod: { color: C.muted, fontSize: 9 },
+  walletBalance: { color: C.ink, fontSize: 9, fontWeight: "800" },
+  walletEmpty: { color: C.muted, textAlign: "right", fontSize: 10, lineHeight: 17, marginTop: 8 },
   periodPicker: { marginTop: 14, marginBottom: 1 },
   periodPickerLabel: {
     color: C.muted,

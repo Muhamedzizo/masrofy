@@ -5,6 +5,7 @@ import type { ExpenseCategory } from "@/lib/categories";
 export type PaymentMethod = { id: string; label: string; custom?: boolean };
 
 export const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = [
+  { id: "cash", label: "كاش" },
   { id: "manual", label: "يدوي" },
   { id: "instapay", label: "إنستا باي" },
   { id: "vodafone", label: "فودافون كاش" },

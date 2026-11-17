@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { BalanceEvent, SalaryRule } from "@/lib/wallet-model";
 
 export type PaymentSource = string;
 export type ExpenseStatus = "pending" | "confirmed";
@@ -25,6 +26,8 @@ export type NotificationCandidate = {
 };
 
 const STORAGE_KEY = "masrofy.expenses.v1";
+const BALANCE_EVENTS_KEY = "masrofy.balance-events.v1";
+const SALARY_RULES_KEY = "masrofy.salary-rules.v1";
 let initPromise: Promise<void> | null = null;
 let webQueue: Promise<void> = Promise.resolve();
 
@@ -111,6 +114,22 @@ async function writeExpenses(expenses: Expense[]): Promise<void> {
   await webQueue;
 }
 
+async function readRows<T>(key: string): Promise<T[]> {
+  const stored = await AsyncStorage.getItem(key);
+  if (!stored) return [];
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeRows<T>(key: string, rows: T[]): Promise<void> {
+  webQueue = webQueue.then(() => AsyncStorage.setItem(key, JSON.stringify(rows)));
+  await webQueue;
+}
+
 export async function initDatabase(): Promise<void> {
   if (initPromise) return initPromise;
   initPromise = readExpenses()
@@ -144,6 +163,51 @@ export async function saveExpense(expense: Expense): Promise<void> {
 export async function deleteExpense(id: string): Promise<void> {
   await initDatabase();
   await writeExpenses((await readExpenses()).filter((expense) => expense.id !== id));
+}
+
+export async function listBalanceEvents(): Promise<BalanceEvent[]> {
+  await initDatabase();
+  return (await readRows<BalanceEvent>(BALANCE_EVENTS_KEY)).sort(
+    (a, b) => b.occurredAt - a.occurredAt,
+  );
+}
+
+export async function saveBalanceEvent(event: BalanceEvent): Promise<void> {
+  await initDatabase();
+  const rows = await readRows<BalanceEvent>(BALANCE_EVENTS_KEY);
+  const duplicate = rows.findIndex(
+    (item) =>
+      item.id === event.id ||
+      (!!event.recurringKey && item.recurringKey === event.recurringKey),
+  );
+  if (duplicate >= 0) {
+    if (rows[duplicate]?.id === event.id) rows[duplicate] = event;
+  } else {
+    rows.push(event);
+  }
+  await writeRows(BALANCE_EVENTS_KEY, rows);
+}
+
+export async function listSalaryRules(): Promise<SalaryRule[]> {
+  await initDatabase();
+  return readRows<SalaryRule>(SALARY_RULES_KEY);
+}
+
+export async function saveSalaryRule(rule: SalaryRule): Promise<void> {
+  await initDatabase();
+  const rows = await readRows<SalaryRule>(SALARY_RULES_KEY);
+  const index = rows.findIndex((item) => item.id === rule.id);
+  if (index >= 0) rows[index] = rule;
+  else rows.push(rule);
+  await writeRows(SALARY_RULES_KEY, rows);
+}
+
+export async function deleteSalaryRule(id: string): Promise<void> {
+  await initDatabase();
+  await writeRows(
+    SALARY_RULES_KEY,
+    (await readRows<SalaryRule>(SALARY_RULES_KEY)).filter((rule) => rule.id !== id),
+  );
 }
 
 export async function ingestCandidates(
