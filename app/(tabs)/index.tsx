@@ -345,6 +345,9 @@ export default function HomeScreen() {
             <Text style={s.sectionTitle}>وسيلة الدفع</Text>
             <Text style={s.sectionSub}>توزيع حسب المصدر</Text>
           </View>
+          <TouchableOpacity onPress={() => router.push("/reports" as Href)}>
+            <Text style={s.link}>التقرير الشهري</Text>
+          </TouchableOpacity>
         </View>
         <View style={s.categoryCard}>
           {sourceTotals.length === 0 ? (

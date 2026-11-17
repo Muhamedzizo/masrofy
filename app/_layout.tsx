@@ -44,6 +44,10 @@ export default function RootLayout() {
                   name="wallet"
                   options={{ presentation: "card", animation: "slide_from_right" }}
                 />
+                <Stack.Screen
+                  name="reports"
+                  options={{ presentation: "card", animation: "slide_from_right" }}
+                />
                 <Stack.Screen name="oauth/callback" />
               </Stack>
               <StatusBar style="dark" />
