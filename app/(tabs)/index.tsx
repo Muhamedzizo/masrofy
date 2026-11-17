@@ -10,6 +10,11 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { DEFAULT_CATEGORIES, getCategory } from "@/lib/categories";
+import {
+  getPaymentMethodLabel,
+  loadExpenseCategories,
+  loadPaymentMethods,
+} from "@/lib/personalization";
 import { initDatabase, listExpenses } from "@/lib/expense-db";
 import type { Expense, PaymentSource } from "@/lib/expense-db";
 import {
@@ -31,19 +36,13 @@ const C = {
   white: "#FFFFFF",
   mint: "#E6F1EE",
 };
-const sourceLabels: Record<PaymentSource, string> = {
-  instapay: "إنستا باي",
-  vodafone: "فودافون كاش",
-  fawry: "myFawry",
-  manual: "يدوي",
-};
-const sourceIcons: Record<PaymentSource, keyof typeof Ionicons.glyphMap> = {
+const sourceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   instapay: "swap-horizontal-outline",
   vodafone: "phone-portrait-outline",
   fawry: "receipt-outline",
   manual: "create-outline",
 };
-const sourceColors: Record<PaymentSource, string> = {
+const sourceColors: Record<string, string> = {
   instapay: C.green,
   vodafone: "#A43DA2",
   fawry: C.coral,
@@ -54,11 +53,17 @@ export default function HomeScreen() {
   const router = useRouter();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [period, setPeriod] = useState<ExpensePeriod>("month");
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [paymentMethods, setPaymentMethods] = useState<
+    { id: string; label: string }[]
+  >([{ id: "manual", label: "يدوي" }]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     try {
       await initDatabase();
       setExpenses(await listExpenses());
+      setCategories(await loadExpenseCategories());
+      setPaymentMethods(await loadPaymentMethods());
     } finally {
       setLoading(false);
     }
@@ -82,7 +87,7 @@ export default function HomeScreen() {
   );
   const pending = expenses.filter((expense) => expense.status === "pending");
   const categoryAmounts = new Map<string, number>(
-    DEFAULT_CATEGORIES.map((category) => [category.id, 0]),
+    categories.map((category) => [category.id, 0]),
   );
   const sourceAmounts = new Map<PaymentSource, number>();
   for (const expense of periodExpenses) {
@@ -95,14 +100,14 @@ export default function HomeScreen() {
       (sourceAmounts.get(expense.source) ?? 0) + expense.amountPiasters,
     );
   }
-  const categoryTotals = DEFAULT_CATEGORIES.map((category) => ({
+  const categoryTotals = categories.map((category) => ({
     category,
     amount: categoryAmounts.get(category.id) ?? 0,
   }))
     .filter((item) => item.amount > 0)
     .sort((a, b) => b.amount - a.amount);
-  const sourceTotals = (Object.keys(sourceLabels) as PaymentSource[])
-    .map((source) => ({ source, amount: sourceAmounts.get(source) ?? 0 }))
+  const sourceTotals = [...sourceAmounts.entries()]
+    .map(([source, amount]) => ({ source, amount }))
     .filter((item) => item.amount > 0)
     .sort((a, b) => b.amount - a.amount);
   const periodLabel =
@@ -316,14 +321,16 @@ export default function HomeScreen() {
               <View key={source} style={s.categoryRow}>
                 <View style={[s.categoryIcon, { backgroundColor: C.mint }]}>
                   <Ionicons
-                    name={sourceIcons[source]}
+                    name={sourceIcons[source] ?? "wallet-outline"}
                     size={18}
-                    color={sourceColors[source]}
+                    color={sourceColors[source] ?? C.green}
                   />
                 </View>
                 <View style={s.categoryInfo}>
                   <View style={s.categoryLabels}>
-                    <Text style={s.categoryName}>{sourceLabels[source]}</Text>
+                    <Text style={s.categoryName}>
+                      {getPaymentMethodLabel(source, paymentMethods)}
+                    </Text>
                     <Text style={s.categoryAmount}>
                       {formatPiasters(amount)}
                     </Text>
@@ -333,7 +340,7 @@ export default function HomeScreen() {
                       style={[
                         s.bar,
                         {
-                          backgroundColor: sourceColors[source],
+                          backgroundColor: sourceColors[source] ?? C.green,
                           width: `${Math.max(8, Math.round((amount / total) * 100))}%`,
                         },
                       ]}
@@ -358,11 +365,11 @@ export default function HomeScreen() {
             <View style={s.emptyInline}>
               <Ionicons name="receipt-outline" size={25} color="#A5AEA9" />
               <Text style={s.emptyTitle}>سجلك لسه فاضي</Text>
-              <Text style={s.emptyText}>ابدأ بإضافة مصروف يدوي</Text>
+              <Text style={s.emptyText}>ابدأ بتسجيل أول حاجة صرفتها</Text>
             </View>
           ) : (
             recent.map((expense, index) => {
-              const cat = getCategory(expense.categoryId);
+              const cat = getCategory(expense.categoryId, categories);
               return (
                 <View
                   key={expense.id}
@@ -383,7 +390,7 @@ export default function HomeScreen() {
                       {expense.description || cat.label}
                     </Text>
                     <Text style={s.transactionMeta}>
-                      {cat.label} · {sourceLabels[expense.source]} ·{" "}
+                      {cat.label} · {getPaymentMethodLabel(expense.source, paymentMethods)} ·{" "}
                       {formatDate(expense.occurredAt)}
                     </Text>
                   </View>
@@ -398,13 +405,13 @@ export default function HomeScreen() {
         <Text style={s.privacyNote}>◈ بياناتك محفوظة على جهازك فقط</Text>
       </ScrollView>
       <TouchableOpacity
-        accessibilityLabel="إضافة مصروف"
+        accessibilityLabel="صرفت"
         activeOpacity={0.9}
         onPress={() => router.push("/add-expense")}
         style={s.fab}
       >
         <Ionicons name="add" size={24} color="#fff" />
-        <Text style={s.fabText}>إضافة</Text>
+        <Text style={s.fabText}>صرفت</Text>
       </TouchableOpacity>
     </View>
   );

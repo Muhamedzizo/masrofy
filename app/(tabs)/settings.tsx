@@ -4,21 +4,17 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import FlexibleSources from "@/components/FlexibleSources";
 import {
-  PAYMENT_SOURCES,
   getNotificationAccessEnabled,
   openNotificationAccessSettings,
-  setNotificationSources,
 } from "@/lib/notification-bridge";
-import type { NotificationSource } from "@/lib/notification-bridge";
 const C = {
   paper: "#F7F5EF",
   green: "#0F766E",
@@ -28,8 +24,6 @@ const C = {
   white: "#FFFFFF",
   amber: "#D5A13D",
 };
-const STORAGE_KEY = "masrofy.notification-sources.v1";
-const ALL: NotificationSource[] = PAYMENT_SOURCES.map((source) => source.value);
 function hasNativeListener(): boolean {
   try {
     return Boolean(
@@ -44,28 +38,15 @@ function hasNativeListener(): boolean {
 export default function SettingsScreen() {
   const router = useRouter();
   const [enabled, setEnabled] = useState(false);
-  const [sources, setSources] = useState<NotificationSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [bridgeAvailable, setBridgeAvailable] = useState(false);
   const supported = Platform.OS === "android";
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY);
-      let selected: NotificationSource[] = [];
-      if (saved) {
-        try {
-          const list = JSON.parse(saved) as NotificationSource[];
-          selected = [...new Set(list.filter((value) => ALL.includes(value)))];
-        } catch {
-          selected = [];
-        }
-      }
-      setSources(selected);
       const available = supported && hasNativeListener();
       setBridgeAvailable(available);
       if (available) {
-        await setNotificationSources(selected);
         setEnabled(await getNotificationAccessEnabled());
       }
       else setEnabled(false);
@@ -78,14 +59,6 @@ export default function SettingsScreen() {
       void load();
     }, [load]),
   );
-  const toggle = async (source: NotificationSource) => {
-    const next = sources.includes(source)
-      ? sources.filter((item) => item !== source)
-      : [...sources, source];
-    setSources(next);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    await setNotificationSources(next);
-  };
   const openSettings = async () => {
     await openNotificationAccessSettings();
     setTimeout(() => {
@@ -114,8 +87,7 @@ export default function SettingsScreen() {
           <View style={{ flex: 1, alignItems: "flex-end" }}>
             <Text style={s.privacyTitle}>دفترك ملكك</Text>
             <Text style={s.privacyText}>
-              كل سجل المصروفات بيُحفظ على جهازك فقط. مفيش حساب أو رفع أو مزامنة
-              أو مشاركة.
+              دفترك الشخصي محفوظ على جهازك فقط. دفتر الأسرة اختياري ومشترك مع الأعضاء الذين تدعوهم، ويُحفظ على الخادم.
             </Text>
           </View>
         </View>
@@ -182,65 +154,7 @@ export default function SettingsScreen() {
             </>
           )}
         </View>
-        <View style={s.section}>
-          <View style={s.sectionHead}>
-            <View>
-              <Text style={s.sectionTitle}>مصادر الإشعارات</Text>
-              <Text style={s.sectionSub}>
-                اختار التطبيقات اللي تسمح بقراءتها
-              </Text>
-            </View>
-            <Ionicons name="apps-outline" size={20} color={C.green} />
-          </View>
-          {PAYMENT_SOURCES.map((source) => (
-            <View key={source.value} style={s.sourceRow}>
-              <View style={s.sourceToggle}>
-                <Switch
-                  value={sources.includes(source.value)}
-                  onValueChange={() => void toggle(source.value)}
-                  disabled={!bridgeAvailable}
-                  trackColor={{ false: "#DADDD8", true: "#9BC8B8" }}
-                  thumbColor={
-                    sources.includes(source.value) ? C.green : "#F8F8F6"
-                  }
-                />
-              </View>
-              <View style={s.sourceInfo}>
-                <Text style={s.sourceLabel}>{source.label}</Text>
-                <Text style={s.sourceHint}>
-                  {source.value === "instapay"
-                    ? "تحويلات إنستا باي"
-                    : source.value === "vodafone"
-                      ? "خدمات محفظة فودافون كاش"
-                      : "مدفوعات myFawry"}
-                </Text>
-              </View>
-              <View style={s.sourceIcon}>
-                <Ionicons
-                  name={
-                    source.value === "instapay"
-                      ? "swap-horizontal-outline"
-                      : source.value === "vodafone"
-                        ? "phone-portrait-outline"
-                        : "receipt-outline"
-                  }
-                  size={18}
-                  color={source.value === "vodafone" ? "#A43DA2" : C.green}
-                />
-              </View>
-            </View>
-          ))}
-          <View style={s.smsNote}>
-            <Ionicons
-              name="information-circle-outline"
-              size={16}
-              color="#967429"
-            />
-            <Text style={s.smsText}>
-              رسائل SMS من تطبيق الرسائل مش ضمن مصادر القراءة الحالية.
-            </Text>
-          </View>
-        </View>
+        <FlexibleSources bridgeAvailable={bridgeAvailable} />
         <TouchableOpacity
           style={s.reviewLink}
           onPress={() => router.push("/review")}
@@ -257,8 +171,8 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-back" size={18} color={C.muted} />
         </TouchableOpacity>
         <View style={s.footer}>
-          <Text style={s.version}>مصروفي · سجل شخصي بلا حسابات</Text>
-          <Text style={s.versionSub}>محتوى الإشعار الأصلي لا يُحفظ</Text>
+          <Text style={s.version}>مصروفي · دفتر شخصي أو أسري اختياري</Text>
+          <Text style={s.versionSub}>نص إشعار الدفع ورسالة SMS الأصلية لا يُحفظان</Text>
         </View>
       </ScrollView>
     </View>

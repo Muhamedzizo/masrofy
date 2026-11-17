@@ -14,6 +14,11 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { DEFAULT_CATEGORIES, getCategory } from "@/lib/categories";
 import { deleteExpense, Expense, listExpenses } from "@/lib/expense-db";
 import {
+  getPaymentMethodLabel,
+  loadExpenseCategories,
+  loadPaymentMethods,
+} from "@/lib/personalization";
+import {
   EXPENSE_PERIODS,
   formatDate,
   formatPiasters,
@@ -29,19 +34,6 @@ const C = {
   coral: "#C65F47",
   white: "#FFFFFF",
 };
-const SOURCES = [
-  { id: "all", title: "الكل" },
-  { id: "manual", title: "يدوي" },
-  { id: "instapay", title: "إنستا باي" },
-  { id: "vodafone", title: "فودافون كاش" },
-  { id: "fawry", title: "myFawry" },
-];
-const sourceName: Record<string, string> = {
-  instapay: "إنستا باي",
-  vodafone: "فودافون كاش",
-  fawry: "myFawry",
-  manual: "يدوي",
-};
 export default function TransactionsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<Expense[]>([]);
@@ -49,8 +41,21 @@ export default function TransactionsScreen() {
   const [category, setCategory] = useState("all");
   const [source, setSource] = useState("all");
   const [query, setQuery] = useState("");
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [paymentMethods, setPaymentMethods] = useState<{ id: string; label: string }[]>([
+    { id: "manual", label: "يدوي" },
+  ]);
   const load = useCallback(
-    async () => setItems(await listExpenses("confirmed")),
+    async () => {
+      const [nextItems, nextCategories, nextMethods] = await Promise.all([
+        listExpenses("confirmed"),
+        loadExpenseCategories(),
+        loadPaymentMethods(),
+      ]);
+      setItems(nextItems);
+      setCategories(nextCategories);
+      setPaymentMethods(nextMethods);
+    },
     [],
   );
   useFocusEffect(
@@ -105,7 +110,7 @@ export default function TransactionsScreen() {
             style={s.add}
           >
             <Ionicons name="add" size={19} color="#fff" />
-            <Text style={s.addText}>إضافة</Text>
+            <Text style={s.addText}>صرفت</Text>
           </TouchableOpacity>
         </View>
         <View style={s.summary}>
@@ -162,7 +167,7 @@ export default function TransactionsScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.horizontal}
         >
-          {[{ id: "all", label: "الكل" }, ...DEFAULT_CATEGORIES].map((x) => (
+          {[{ id: "all", label: "الكل" }, ...categories].map((x) => (
             <TouchableOpacity
               key={x.id}
               onPress={() => setCategory(x.id)}
@@ -182,7 +187,7 @@ export default function TransactionsScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.horizontal}
         >
-          {SOURCES.map((x) => (
+          {[{ id: "all", title: "الكل" }, ...paymentMethods.map((item) => ({ id: item.id, title: item.label }))].map((x) => (
             <TouchableOpacity
               key={x.id}
               onPress={() => setSource(x.id)}
@@ -209,7 +214,7 @@ export default function TransactionsScreen() {
             </View>
           ) : (
             filtered.map((item, index) => {
-              const cat = getCategory(item.categoryId);
+              const cat = getCategory(item.categoryId, categories);
               return (
                 <TouchableOpacity
                   activeOpacity={0.8}
@@ -248,7 +253,7 @@ export default function TransactionsScreen() {
                       {item.description || cat.label}
                     </Text>
                     <Text style={s.meta}>
-                      {cat.label} · {sourceName[item.source]} ·{" "}
+                      {cat.label} · {getPaymentMethodLabel(item.source, paymentMethods)} ·{" "}
                       {formatDate(item.occurredAt, true)}
                     </Text>
                   </View>

@@ -10,9 +10,9 @@
 
 ## المنتج والخصوصية
 
-تطبيق مصروفات Android عربي لمستخدم واحد. يدعم الإدخال اليدوي، السجل والملخصات والفلاتر والفئات، وصندوق مراجعة مستقل لاقتراحات مستخرجة من إشعارات InstaPay وAna Vodafone/Vodafone Cash وmyFawry. تخزين معاملات المستخدم محليًا: SQLite على Android وAsyncStorage منفصل لمعاينة الويب. لا تستخدم شاشات التطبيق خادم/قاعدة Manus لحفظ المصروفات، ولا توجد مزامنة أو مشاركة أو حساب مستخدم. مصادر الإشعارات متوقفة افتراضيًا، ولا يُحفظ نص الإشعار الخام. الاستخلاص heuristic وليس تكاملًا رسميًا مضمونًا؛ التطبيق لا يقرأ SMS.
+تطبيق مصروفات Android عربي. الدفتر الشخصي منفصل ومحلي (SQLite على Android وAsyncStorage لمعاينة الويب). أُضيف في مصدر التحديث: تسمية الإجراء «صرفت»، فئات وطرق دفع مخصصة، اختيار التطبيقات التي يسمح المستخدم بمعالجة إشعاراتها، اختيار مرسلي SMS الجدد فقط بإذن RECEIVE_SMS بعد طلب المستخدم، وربط القناتين بطريقة الدفع لإزالة تكرار heuristic، مع بقاء النتائج في المراجعة. لا يحفظ التطبيق نص إشعار أو SMS خامًا ولا يطلب READ_SMS. أُضيف دفتر أسرة اختياري عبر Manus OAuth، بدعوات وصلاحيات ومصروف أسري ومبالغ معطاة منفصلة. للدفتر الأسري API وmigration مصدريان لكن migration قاعدة البيانات لم يُشغّل، لذا الوظيفة غير جاهزة على الخادم قبل تهيئة المخطط ونشر backend.
 
-## الفحوص المنفذة في النسخة الجديدة — 2026-11-16
+## الفحوص المنفذة في النسخة الأساسية — 2026-11-16
 
 - `CI=true pnpm check`: نجح.
 - `CI=true pnpm test`: 34 اختبارًا ناجحًا، واختبار واحد متخطّى (`tests/auth.logout.test.ts`).
@@ -20,14 +20,25 @@
 - `pnpm exec expo config --type prebuild --json`: أكد الاسم والـslug ومعرّف Android والرابط الدائم للشعار والأيقونات.
 - `CI=true pnpm exec expo prebuild --platform android --no-install`: نجح.
 - `expo-modules-autolinking resolve --platform android --json`: وجد وحدة `masrofy-notifications` المحلية.
-- AndroidManifest الناتج يسجل `MasrofyNotificationListenerService` مع `BIND_NOTIFICATION_LISTENER_SERVICE` والـaction الصحيح، ويحافظ على `allowBackup=false`؛ ولا يتضمن `READ_SMS` أو `RECEIVE_SMS`.
+- AndroidManifest الأساسي سجل `MasrofyNotificationListenerService` وحافظ على `allowBackup=false`.
 - Metro أعاد HTTP 200. عُرضت صفحات الملخص والسجل والإعدادات والمراجعة على مقاس هاتف 390×844.
+
+## فحوص تحديث المصدر — 2026-11-17
+
+- `CI=true pnpm check`: نجح.
+- `CI=true pnpm test`: نجح، 34 اختبارًا وواحد متخطى.
+- `CI=true pnpm lint`: نجح، مع تحذير Node غير مانع في تكوين ESLint.
+- `git diff --check`: نجح.
+- `expo prebuild --platform android --no-install`: نجح؛ AndroidManifest المولد يحتوي RECEIVE_SMS ومستقبل SMS وخدمة الإشعارات واستعلام التطبيقات، ولا يحتوي READ_SMS.
+- لم يُنفذ migration `drizzle/0001_family_notebook.sql` ولم يُنشر backend.
+- لا تتوفر في Sandbox أدوات Android SDK أو Gradle أو Kotlin compiler؛ لم يُبنَ APK محلي ولم يُفحص توقيعه.
 
 ## ما يزال مفتوحًا
 
-- لم يُبنَ APK/AAB بعد. يجب استخدام إجراء **Build APK** في لوحة Manus بعد حفظ نسخة المصدر. لا تتوفر في Sandbox أدوات Android SDK لبناء إصدار أصلي محليًا.
+- لم يُبنَ APK بعد. يجب استخدام **Build APK** في لوحة Manus والحفاظ على معرّف الحزمة، والتحقق من تطابق مفتاح التوقيع مع النسخة المثبتة حتى يمكن التحديث دون حذف بياناتها.
+- يجب تطبيق migration قاعدة بيانات الأسرة ونشر backend بعد مراجعة البيئة؛ صفحة الأسرة قد تعرض API غير متاح قبل ذلك.
 - لم يُختبر APK على هاتف حقيقي. يظل تثبيت التطبيق وصلاحية NotificationListener ومصادر الإشعارات والإشعارات الصادرة الناجحة والفاشلة/الواردة مفتوحة؛ لا يُدّعى نجاح الالتقاط أو دقة استخلاص الجهة قبل ذلك.
-- الاستخلاص heuristic؛ قد تتغير صياغة إشعارات التطبيقات وقد لا تصل بعض عمليات Vodafone Cash كإشعار تطبيق، وبعضها قد يصل عبر SMS وهو خارج النطاق.
+- الاستخلاص ودمج إشعار/SMS heuristic؛ قد تتغير الصيغ أو تتشابه عمليتان. يلزم اختبار جهاز حقيقي ومراجعة سياسة Google Play قبل توزيع نسخة تطلب RECEIVE_SMS.
 
 
 ## مراجعة ساكنة للإشعارات

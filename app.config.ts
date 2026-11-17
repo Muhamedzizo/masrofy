@@ -60,7 +60,7 @@ const config: ExpoConfig & { logoUrl: string } = {
   logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663786239181/cQpjiGCvumNhgCsn.png",
   name: env.appName,
   slug: env.appSlug,
-  version: "1.0.0",
+  version: "1.1.0",
   extra: publicRuntime,
   orientation: "portrait",
   icon: "./assets/images/icon.png",
@@ -74,6 +74,7 @@ const config: ExpoConfig & { logoUrl: string } = {
       }
   },
   android: {
+    versionCode: 2,
     adaptiveIcon: {
       backgroundColor: "#F7F5EF",
       foregroundImage: "./assets/images/android-icon-foreground.png",

@@ -7,10 +7,7 @@ import android.service.notification.StatusBarNotification
 class MasrofyNotificationListenerService : NotificationListenerService() {
   override fun onNotificationPosted(sbn: StatusBarNotification?) {
     if (sbn == null) return
-
-    val source = PaymentSource.fromPackage(sbn.packageName) ?: return
-    if (!NotificationQueue.isSourceEnabled(applicationContext, source.value)) return
-
+    val source = NotificationQueue.sourceForPackage(applicationContext, sbn.packageName) ?: return
     val extras = sbn.notification?.extras ?: return
     val transientText = StringBuilder()
     val parsed = try {
@@ -28,17 +25,14 @@ class MasrofyNotificationListenerService : NotificationListenerService() {
     }
     if (parsed == null) return
     val postedAt = sbn.postTime.takeIf { it > 0L } ?: return
-
-    // Only a bounded candidate is persisted. The original notification text is never stored or sent.
     NotificationQueue.enqueue(
       applicationContext,
       source,
       parsed.amountPiasters,
       parsed.description,
       postedAt,
-      sbn.packageName,
-      sbn.key,
-      sbn.id
+      "notification",
+      "${sbn.packageName}|${sbn.key}|${sbn.id}"
     )
   }
 

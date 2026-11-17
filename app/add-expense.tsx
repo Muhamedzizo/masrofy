@@ -20,6 +20,7 @@ import {
   saveExpense,
 } from "@/lib/expense-db";
 import { parseAmountToPiasters } from "@/lib/money";
+import { loadExpenseCategories, loadPaymentMethods } from "@/lib/personalization";
 const C = {
   paper: "#F7F5EF",
   green: "#0F766E",
@@ -29,12 +30,6 @@ const C = {
   white: "#FFFFFF",
   coral: "#C65F47",
 };
-const SOURCES: { id: PaymentSource; label: string }[] = [
-  { id: "manual", label: "يدوي" },
-  { id: "instapay", label: "إنستا باي" },
-  { id: "vodafone", label: "فودافون كاش" },
-  { id: "fawry", label: "myFawry" },
-];
 const nowLocal = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -82,9 +77,21 @@ export default function AddExpenseScreen() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("food");
   const [source, setSource] = useState<PaymentSource>("manual");
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [sources, setSources] = useState<{ id: string; label: string }[]>([
+    { id: "manual", label: "يدوي" },
+  ]);
   const [date, setDate] = useState(nowLocal());
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    void Promise.all([loadExpenseCategories(), loadPaymentMethods()]).then(
+      ([nextCategories, nextSources]) => {
+        setCategories(nextCategories);
+        setSources(nextSources);
+      },
+    );
+  }, []);
   useEffect(() => {
     if (!id) return;
     void listExpenses().then((rows) => {
@@ -125,7 +132,7 @@ export default function AddExpenseScreen() {
         source,
         description:
           description.trim() ||
-          DEFAULT_CATEGORIES.find((c) => c.id === category)?.label ||
+          categories.find((c) => c.id === category)?.label ||
           "مصروف",
         categoryId: category,
         status: reviewing ? "confirmed" : (original?.status ?? "confirmed"),
@@ -162,7 +169,7 @@ export default function AddExpenseScreen() {
                 ? "تعديل قبل التأكيد"
                 : original
                   ? "تعديل المصروف"
-                  : "مصروف جديد"}
+                : "صرفت"}
             </Text>
           </View>
         </View>
@@ -211,7 +218,7 @@ export default function AddExpenseScreen() {
         <Text style={s.tiny}>الصيغة: سنة-شهر-يوم ساعة:دقيقة</Text>
         <Text style={s.label}>الفئة</Text>
         <View style={s.categoryGrid}>
-          {DEFAULT_CATEGORIES.map((item) => (
+          {categories.map((item) => (
             <TouchableOpacity
               key={item.id}
               onPress={() => setCategory(item.id)}
@@ -232,7 +239,7 @@ export default function AddExpenseScreen() {
         </View>
         <Text style={s.label}>مصدر الدفع</Text>
         <View style={s.sourceGrid}>
-          {SOURCES.map((item) => (
+          {sources.map((item) => (
             <TouchableOpacity
               key={item.id}
               onPress={() => setSource(item.id)}
@@ -270,7 +277,7 @@ export default function AddExpenseScreen() {
               ? "جارٍ الحفظ…"
               : reviewing
                 ? "تأكيد وإضافة للسجل"
-                : "حفظ المصروف"}
+                : "حفظ اللي صرفته"}
           </Text>
         </TouchableOpacity>
         <Text style={s.private}>هذه العملية ستُحفظ محليًا على جهازك فقط.</Text>

@@ -1,6 +1,6 @@
 import * as SQLite from "expo-sqlite";
 
-export type PaymentSource = "instapay" | "vodafone" | "fawry" | "manual";
+export type PaymentSource = string;
 export type ExpenseStatus = "pending" | "confirmed";
 export type ExpenseOrigin = "manual" | "notification";
 
@@ -18,7 +18,7 @@ export type Expense = {
 
 export type NotificationCandidate = {
   id: string;
-  source: "instapay" | "vodafone" | "fawry";
+  source: string;
   amountPiasters: number;
   timestamp: number;
   description?: string;

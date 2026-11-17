@@ -51,9 +51,12 @@ export const DEFAULT_CATEGORIES: ExpenseCategory[] = [
   },
 ];
 
-export function getCategory(categoryId: string): ExpenseCategory {
+export function getCategory(
+  categoryId: string,
+  categories: ExpenseCategory[] = DEFAULT_CATEGORIES,
+): ExpenseCategory {
   return (
-    DEFAULT_CATEGORIES.find((category) => category.id === categoryId) ??
+    categories.find((category) => category.id === categoryId) ??
     DEFAULT_CATEGORIES[5]
   );
 }
