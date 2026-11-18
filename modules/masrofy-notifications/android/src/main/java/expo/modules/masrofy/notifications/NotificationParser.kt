@@ -11,10 +11,25 @@ internal data class ParsedNotification(
 
 internal object NotificationParser {
   private const val MAX_PAYEE_LENGTH = 48
+  private const val AMOUNT_TOKEN =
+    "(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d{1,2})?|\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)"
 
   private val amountPattern = Regex(
-    "(?<![\\p{L}\\d])((?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d{1,2})?|" +
-      "\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?))(?!\\d)"
+    "(?<![\\p{L}\\d])($AMOUNT_TOKEN)(?!\\d)"
+  )
+  private val arabicTransferAmountPattern = Regex(
+    "تم\\s+تحويل\\s+(?:مبلغ\\s+)?($AMOUNT_TOKEN)\\s*(?:جنيه(?:\\s+مصري)?|ج\\s*\\.?\\s*م\\s*\\.?)"
+  )
+  private val arabicLabeledAmountPattern = Regex(
+    "(?:بمبلغ|بمقدار|بقيمة)\\s+($AMOUNT_TOKEN)\\s*(?:جنيه(?:\\s+مصري)?|ج\\s*\\.?\\s*م\\s*\\.?|\\bEGP\\b)",
+    RegexOption.IGNORE_CASE
+  )
+  private val arabicDebitAmountPattern = Regex(
+    "تم\\s+خصم\\s+($AMOUNT_TOKEN)\\s*(?:\\bEGP\\b|جنيه(?:\\s+مصري)?|ج\\s*\\.?\\s*م\\s*\\.?)",
+    RegexOption.IGNORE_CASE
+  )
+  private val ipnSentAmountPattern = Regex(
+    "(?i)\\bIPN\\s+transfer\\s+sent\\s+with\\s+amount\\s+of\\s+(?:EGP\\s*)?($AMOUNT_TOKEN)\\b"
   )
   private val currencyPattern = Regex("(?i)(?:\\bEGP\\b|\\bL\\.?E\\.?\\b|جنيه(?:\\s+مصري)?|ج\\s*\\.?\\s*م\\s*\\.?)")
   private val englishOutgoingPattern = Regex(
@@ -34,14 +49,15 @@ internal object NotificationParser {
   )
   private val arabicInboundTerms = listOf(
     "استلام", "استلم", "استقبل", "وارد", "إيداع", "ايداع", "تم إيداع", "تم ايداع",
-    "إضافة رصيد", "اضافة رصيد", "أضيف إلى", "وصل إليك", "وصل اليك", "تم تحويل إليك", "تم تحويل اليك"
+    "إضافة رصيد", "اضافة رصيد", "إضافة تحويل", "اضافة تحويل", "أضيف إلى", "وصل إليك", "وصل اليك",
+    "تم تحويل إليك", "تم تحويل اليك"
   )
   private val arabicOutgoingTerms = listOf(
     "تحويل", "إرسال", "ارسال", "خصم", "دفعت", "دفع", "سداد", "شراء", "صادر", "سحب"
   )
   private val arabicSuccessTerms = listOf(
     "بنجاح", "ناجح", "ناجحة", "اكتمل", "اكتملت", "تم تنفيذ", "تمت العملية",
-    "تم التحويل", "تم الإرسال", "تم الارسال", "تم الخصم", "تم الدفع", "تم السداد", "تم الشراء"
+    "تم التحويل", "تم تحويل", "تم الإرسال", "تم الارسال", "تم الخصم", "تم خصم", "تم الدفع", "تم السداد", "تم الشراء"
   )
 
   private val labelledPayeePattern = Regex(
@@ -72,7 +88,9 @@ internal object NotificationParser {
     if (englishInboundPattern.containsMatchIn(text) || arabicInboundTerms.any(text::contains)) return null
     if (englishOutgoingPattern.containsMatchIn(text).not() && arabicOutgoingTerms.none(text::contains)) return null
 
-    val hasSuccess = englishSuccessPattern.containsMatchIn(text) || arabicSuccessTerms.any(text::contains)
+    val ipnSentAmount = ipnSentAmountPattern.find(text)?.groupValues?.get(1)
+    val hasSuccess = englishSuccessPattern.containsMatchIn(text) ||
+      arabicSuccessTerms.any(text::contains) || ipnSentAmount != null
     if (!hasSuccess) return null
 
     val currencies = currencyPattern.findAll(text).toList()
@@ -94,8 +112,13 @@ internal object NotificationParser {
       parsePiasters(amount.groupValues[1])
     }.distinct()
 
-    // Multiple currency-tagged amounts are ambiguous (for example, amount plus available balance).
-    val amount = amounts.singleOrNull() ?: return null
+    // Some provider SMS messages contain multiple currency amounts, such as service fees or
+    // available card balances. Prefer amounts explicitly tied to the transaction action.
+    val explicitAmount = arabicTransferAmountPattern.find(text)?.groupValues?.get(1)?.let(::parsePiasters)
+      ?: arabicLabeledAmountPattern.find(text)?.groupValues?.get(1)?.let(::parsePiasters)
+      ?: arabicDebitAmountPattern.find(text)?.groupValues?.get(1)?.let(::parsePiasters)
+      ?: ipnSentAmount?.let(::parsePiasters)
+    val amount = explicitAmount ?: amounts.singleOrNull() ?: return null
     return ParsedNotification(amountPiasters = amount, description = parsePayee(rawText))
   }
 
